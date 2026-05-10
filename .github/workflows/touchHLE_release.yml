@@ -94,30 +94,27 @@ jobs:
       name: Extract Android NDK
       run: 7z -oandroid-ndk -snld x android-ndk-r25c-linux.zip
     
-    - name: Setup Android SDK directory
-      run: echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+    - name: Setup Android NDK path
+      run: |
+        echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> $GITHUB_ENV
+        echo "ANDROID_NDK_ROOT=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> $GITHUB_ENV
+        echo "ANDROID_NDK=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> $GITHUB_ENV
     
-    - name: Create Android SDK directory
-      run: mkdir -p $HOME/android-sdk/ndk
-    
-    - name: Link Android NDK
-      run: ln -s $PWD/android-ndk/android-ndk-r25c $HOME/android-sdk/ndk/25.2.9519653
-    
-    - name: Generate local.properties file
-      run: echo 'sdk.dir='$HOME/android-sdk > android/local.properties
+    - name: Setup Android SDK path for local.properties
+      run: |
+        mkdir -p $HOME/.android
+        echo "sdk.dir=$HOME/android-sdk" > android/local.properties
+        mkdir -p $HOME/android-sdk/ndk
+        ln -s $GITHUB_WORKSPACE/android-ndk/android-ndk-r25c $HOME/android-sdk/ndk/25.2.9519653
     
     - name: Lint
       run: dev-scripts/lint.sh ndk -t arm64-v8a
       env:
-        ANDROID_NDK_ROOT: $HOME/android-sdk/ndk/25.2.9519653
-        ANDROID_NDK: $HOME/android-sdk/ndk/25.2.9519653
-        ANDROID_NDK_HOME: $HOME/android-sdk/ndk/25.2.9519653
         CMAKE: ${{ github.workspace }}/vendor/cmake/bin/cmake
     
     - name: Build for Android
       run: cd android && ../gradle/gradle-8.11.1/bin/gradle assembleRelease && mv app/build/outputs/apk/release/app-release.apk ../touchHLE.apk
       env:
-        ANDROID_NDK_ROOT: $HOME/android-sdk/ndk/25.2.9519653
         CMAKE: ${{ github.workspace }}/vendor/cmake/bin/cmake
     
     - uses: actions/upload-artifact@v4
