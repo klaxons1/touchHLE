@@ -196,12 +196,12 @@ fn ExtAudioFileSetProperty(
     if audio_desc.sample_rate != client_audio_desc.sample_rate ||
        audio_desc.channels_per_frame != client_audio_desc.channels_per_frame ||
        audio_desc.bits_per_channel != client_audio_desc.bits_per_channel {
-        log_warn!(
+        log!(
             "ExtAudioFileSetProperty: Audio format mismatch. File: {:?}, Client: {:?}. Attempting to continue.",
             audio_desc, client_audio_desc
         );
     } else {
-        log_dbg!("ExtAudioFileSetProperty: Audio format matches: {:?}", audio_desc);
+        log!("ExtAudioFileSetProperty: Audio format matches: {:?}", audio_desc);
     }
 
     0 // success
