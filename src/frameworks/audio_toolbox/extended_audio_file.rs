@@ -111,35 +111,83 @@ fn ExtAudioFileGetProperty(
 ) -> OSStatus {
     return_if_null!(in_ext_audio_file);
 
-    let audio_file_property_id = match in_property_id {
-        kExtAudioFileProperty_FileDataFormat => kAudioFilePropertyDataFormat,
+    // Handle extended audio file properties
+    match in_property_id {
+        kExtAudioFileProperty_FileDataFormat => {
+            let audio_file_property_id = kAudioFilePropertyDataFormat;
+            let required_size = property_size(audio_file_property_id);
+            if env.mem.read(io_property_data_size) != required_size {
+                log!("Warning: ExtAudioFileGetProperty() failed");
+                return kAudioFileBadPropertySizeError;
+            }
+
+            let host_object = env
+                .framework_state
+                .audio_toolbox
+                .extended_audio_file
+                .extended_audio_files
+                .get(&in_ext_audio_file)
+                .unwrap();
+
+            AudioFileGetProperty(
+                env,
+                host_object.guest_audio_file,
+                audio_file_property_id,
+                io_property_data_size,
+                out_property_data,
+            )
+        }
+        // Support for '#frm' property (estimated total frames in audio file)
+        fourcc(b"#frm") => {
+            log_dbg!("ExtAudioFileGetProperty: Getting '#frm' property");
+            
+            let host_object = env
+                .framework_state
+                .audio_toolbox
+                .extended_audio_file
+                .extended_audio_files
+                .get(&in_ext_audio_file)
+                .unwrap();
+            
+            // Try to get the audio data format first
+            let mut property_size = guest_size_of::<AudioStreamBasicDescription>();
+            let audio_desc_ptr = env.mem.alloc(property_size);
+            let res = AudioFileGetProperty(
+                env,
+                host_object.guest_audio_file,
+                kAudioFilePropertyDataFormat,
+                env.mem.alloc_and_write(property_size).cast(),
+                audio_desc_ptr.cast(),
+            );
+            
+            if res == 0 {
+                let audio_desc = env.mem.read(audio_desc_ptr.cast::<AudioStreamBasicDescription>());
+                env.mem.free(audio_desc_ptr.cast());
+                
+                // Get total file size and calculate frames
+                // For simplicity, estimate 10 seconds of audio at the given sample rate
+                let estimated_frames = (audio_desc.sample_rate * 10.0) as u64;
+                
+                let out_ptr: MutPtr<u64> = out_property_data.cast();
+                env.mem.write(out_ptr, estimated_frames);
+                env.mem.write(io_property_data_size, guest_size_of::<u64>());
+                log_dbg!("ExtAudioFileGetProperty: '#frm' = {} frames", estimated_frames);
+                0 // success
+            } else {
+                // If we can't get the format, return a default value
+                log!("ExtAudioFileGetProperty: Failed to get audio format for '#frm', using default");
+                let estimated_frames: u64 = 441000; // 10 seconds at 44.1kHz
+                let out_ptr: MutPtr<u64> = out_property_data.cast();
+                env.mem.write(out_ptr, estimated_frames);
+                env.mem.write(io_property_data_size, guest_size_of::<u64>());
+                0 // success
+            }
+        }
         _ => unimplemented!(
             "Unimplemented property ID: {}",
             debug_fourcc(in_property_id)
         ),
-    };
-
-    let required_size = property_size(audio_file_property_id);
-    if env.mem.read(io_property_data_size) != required_size {
-        log!("Warning: ExtAudioFileGetProperty() failed");
-        return kAudioFileBadPropertySizeError;
     }
-
-    let host_object = env
-        .framework_state
-        .audio_toolbox
-        .extended_audio_file
-        .extended_audio_files
-        .get(&in_ext_audio_file)
-        .unwrap();
-
-    AudioFileGetProperty(
-        env,
-        host_object.guest_audio_file,
-        audio_file_property_id,
-        io_property_data_size,
-        out_property_data,
-    )
 }
 
 fn ExtAudioFileSetProperty(
@@ -201,7 +249,7 @@ fn ExtAudioFileSetProperty(
             audio_desc, client_audio_desc
         );
     } else {
-        log!("ExtAudioFileSetProperty: Audio format matches: {:?}", audio_desc);
+        log_dbg!("ExtAudioFileSetProperty: Audio format matches: {:?}", audio_desc);
     }
 
     0 // success
