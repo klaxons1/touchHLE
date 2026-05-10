@@ -72,7 +72,6 @@ jobs:
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
         unzip -q commandlinetools-linux-11076708_latest.zip -d $HOME/android-sdk/cmdline-tools
         mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
-        export PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin
         
         # Accept all licenses
         yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
@@ -80,55 +79,46 @@ jobs:
         # Install required components
         $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-31" "build-tools;35.0.0" --verbose || true
     
-    - name: Setup Android environment variables
+    - name: Setup Android NDK
       run: |
+        # Download and extract NDK if not cached
+        if [ ! -d "android-ndk/android-ndk-r25c" ]; then
+          curl -L -o android-ndk-r25c-linux.zip "https://dl.google.com/android/repository/android-ndk-r25c-linux.zip"
+          7z -oandroid-ndk -snld x android-ndk-r25c-linux.zip
+        fi
         echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> $GITHUB_ENV
         echo "ANDROID_NDK_ROOT=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> $GITHUB_ENV
+        echo "ANDROID_NDK=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> $GITHUB_ENV
     
-    - name: Try to get a cached copy of Gradle
-      id: cache-gradle
-      uses: actions/cache@v3
-      with:
-        path: gradle
-        key: gradle-8.11.1
-    
-    - if: ${{ steps.cache-gradle.outputs.cache-hit != 'true' }}
-      name: Download Gradle
-      run: curl -L -o gradle-8.11.1-bin.zip "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip"
-    
-    - if: ${{ steps.cache-gradle.outputs.cache-hit != 'true' }}
-      name: Extract Gradle
-      run: 7z -ogradle x gradle-8.11.1-bin.zip
-    
-    - name: Try to get a cached copy of Android NDK
-      id: cache-android-ndk
-      uses: actions/cache@v3
-      with:
-        path: android-ndk
-        key: android-ndk-r25c
-    
-    - if: ${{ steps.cache-android-ndk.outputs.cache-hit != 'true' }}
-      name: Download Android NDK
-      run: curl -L -o android-ndk-r25c-linux.zip "https://dl.google.com/android/repository/android-ndk-r25c-linux.zip"
-    
-    - if: ${{ steps.cache-android-ndk.outputs.cache-hit != 'true' }}
-      name: Extract Android NDK
-      run: 7z -oandroid-ndk -snld x android-ndk-r25c-linux.zip
+    - name: Setup Gradle
+      run: |
+        if [ ! -d "gradle/gradle-8.11.1" ]; then
+          curl -L -o gradle-8.11.1-bin.zip "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip"
+          7z -ogradle x gradle-8.11.1-bin.zip
+        fi
     
     - name: Generate local.properties file
-      run: echo 'sdk.dir='$ANDROID_HOME > android/local.properties
+      run: |
+        echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+        echo "ndk.dir=$GITHUB_WORKSPACE/android-ndk/android-ndk-r25c" >> android/local.properties
     
     - name: Lint
       run: dev-scripts/lint.sh ndk -t arm64-v8a
       env:
         CMAKE: ${{ github.workspace }}/vendor/cmake/bin/cmake
+        ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r25c
+        ANDROID_NDK_ROOT: ${{ github.workspace }}/android-ndk/android-ndk-r25c
     
     - name: Build for Android
       run: cd android && ../gradle/gradle-8.11.1/bin/gradle assembleRelease && mv app/build/outputs/apk/release/app-release.apk ../touchHLE.apk
       env:
         CMAKE: ${{ github.workspace }}/vendor/cmake/bin/cmake
+        ANDROID_HOME: ${{ runner.home }}/android-sdk
+        ANDROID_SDK_ROOT: ${{ runner.home }}/android-sdk
+        ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r25c
+        ANDROID_NDK_ROOT: ${{ github.workspace }}/android-ndk/android-ndk-r25c
     
     - uses: actions/upload-artifact@v4
       with:
