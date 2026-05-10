@@ -137,7 +137,7 @@ fn ExtAudioFileGetProperty(
                 out_property_data,
             )
         }
-        // Support for '#frm' property (estimated total frames in audio file)
+        // Support for '#frm' property 
         fourcc(b"#frm") => {
             log_dbg!("ExtAudioFileGetProperty: Getting '#frm' property");
             
@@ -240,8 +240,7 @@ fn ExtAudioFileSetProperty(
         other_host_object.audio_file.audio_description(),
     );
     // TODO: support audio format conversions
-    // FIX: Compare only critical fields to avoid false panics
-    if audio_desc.sample_rate != client_audio_desc.sample_rate ||
+    // FIX: 
        audio_desc.channels_per_frame != client_audio_desc.channels_per_frame ||
        audio_desc.bits_per_channel != client_audio_desc.bits_per_channel {
         log!(
