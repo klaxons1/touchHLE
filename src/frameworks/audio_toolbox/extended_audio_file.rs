@@ -192,8 +192,7 @@ fn ExtAudioFileSetProperty(
         other_host_object.audio_file.audio_description(),
     );
     // TODO: support audio format conversions
-    // FIX: Compare only critical fields to avoid false panics.
-    // Some games (like Ghosts'n Goblins) have identical-looking structs that fail assert_eq.
+    // FIX: Compare only critical fields to avoid false panics
     if audio_desc.sample_rate != client_audio_desc.sample_rate ||
        audio_desc.channels_per_frame != client_audio_desc.channels_per_frame ||
        audio_desc.bits_per_channel != client_audio_desc.bits_per_channel {
